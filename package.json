@@ -1,0 +1,16 @@
+{
+  "name": "namma-bengaluru-live",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server/server.js",
+    "user": "node server/users.js"
+  },
+  "dependencies": {
+    "mysql2": "^3.11.0"
+  }
+}
