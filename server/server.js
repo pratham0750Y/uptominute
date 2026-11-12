@@ -151,7 +151,7 @@ function isPeakIST() {
 async function suggestRoutes(fromQ, toQ) {
   const a = await geocode(fromQ);
   const b = await geocode(toQ);
-  const url = `https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?alternatives=3&overview=false&steps=true`;
+  const url = `https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?alternatives=3&overview=full&geometries=geojson&steps=true`;
   const data = await (await get(url)).json();
   if (data.code !== "Ok" || !data.routes?.length) throw new Error("No drivable route found between those places");
   let advisories = [];
@@ -178,6 +178,8 @@ async function suggestRoutes(fromQ, toQ) {
       etaMin: Math.round(freeFlowMin * (peak ? 1.8 : 1.25)),   // rough rule of thumb, not live traffic
       via, warnings: warnings.slice(0, 3), blocked: warnings.some((w) => w.type === "closure"),
       mapsUrl: `https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=${a.lat},${a.lon}&destination=${b.lat},${b.lon}`,
+      // [lat, lon] pairs for drawing on the map (OSRM gives [lon, lat]); 5 decimals is ~1 m
+      coords: (r.geometry?.coordinates || []).map(([x, y]) => [+y.toFixed(5), +x.toFixed(5)]),
       labels: [], recommended: false,
     };
   });

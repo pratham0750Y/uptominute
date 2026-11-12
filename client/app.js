@@ -8,6 +8,7 @@ let tab = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "Now"
 let loc = (() => { try { return JSON.parse(localStorage.getItem("blr-loc")); } catch { return null; } })();
 const wxPath = (l = loc) => (l ? `/api/weather?lat=${l.lat}&lon=${l.lon}` : "/api/weather");
 let map = null, pin = null, leafletReady = null, areasList = [];
+let routeMapReady = null, routeMapHandle = null;   // React route-map widget (see route-map/)
 const picked = new Map();   // suggestion label -> "lat,lon"
 let displayedEvents = [];
 
@@ -74,7 +75,7 @@ const views = {
           <p class="welcome-note">A project preview: route times are estimates and do not include live road congestion. Some information depends on external sources.</p>
           <button class="go" data-home-tab="Weather">Explore the dashboard</button>
         </div>
-        <div class="feature-grid">${nav.map(([tab, title, desc]) => `<button class="feature-card" data-home-tab="${tab}"><span class="feature-mark" aria-hidden="true">${({Weather:"☼",Traffic:"↗",News:"▤",Radio:"♫"})[tab]}</span><span><b>${title}</b><small>${desc}</small></span><span class="feature-arrow" aria-hidden="true">→</span></button>`).join("")}</div>
+        <div class="feature-grid">${nav.map(([tab, title, desc]) => `<button class="feature-card" data-home-tab="${tab}"><span class="feature-mark" aria-hidden="true">${({Weather:"☼",Traffic:"↗",News:"▤",Events:"▦",Radio:"♫"})[tab] || ""}</span><span><b>${title}</b><small>${desc}</small></span><span class="feature-arrow" aria-hidden="true">→</span></button>`).join("")}</div>
       </section>
       <div class="home-section-title snapshot-title"><h2>Today in Bengaluru</h2><span class="section-caption">A quick snapshot</span></div>
       <div class="home-dashboard">
@@ -107,7 +108,7 @@ const views = {
     setNote(`Traffic headlines and route estimates · updated ${ago(d.fetchedAt)}${d.stale ? " (cached)" : ""}`);
     const spots = ["Silk Board Junction", "Hebbal Flyover", "Tin Factory", "Marathahalli Bridge", "KR Puram"];
     return `<div class="traffic-layout"><section class="panel route-panel"><div class="panel-heading"><div><span class="tag">Plan a journey</span><h2>Route estimate</h2></div><span class="estimate-label">No live congestion data</span></div><div class="row"><input id="a" aria-label="Starting point" placeholder="From · e.g. Indiranagar" autocomplete="off"><input id="b" aria-label="Destination" placeholder="To · e.g. Electronic City" autocomplete="off"><button class="go" id="route">Find routes</button></div><datalist id="pl"></datalist><div id="routes"></div>
-      <div class="popular-routes"><span>Popular areas</span>${spots.map((s) => `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s + " Bengaluru")}" target="_blank" rel="noopener">${s}</a>`).join("")}</div></section>
+      <div class="popular-routes"><span>Popular areas</span>${spots.map((s) => `<a href="#" data-spot="${esc(s)}">${s}</a>`).join("")}</div></section>
       <section class="headline-panel traffic-headlines"><div class="list-heading"><h2>Traffic headlines</h2><span>${d.items.length} updates</span></div><div class="headline-list" id="traffic-list">${d.items.slice(0, 5).map(newsRow).join("")}</div>${d.items.length > 5 ? `<button class="more-button" id="traffic-more" data-next="5">Show more updates</button>` : d.items.length === 0 ? `<div class="panel empty">No traffic headlines available right now.</div>` : ""}</section></div>`;
   },
   async Events() {
@@ -151,6 +152,7 @@ const views = {
 };
 
 async function render() {
+  routeMapHandle?.destroy(); routeMapHandle = null;
   document.querySelectorAll(".tab[data-k]").forEach((b) => b.setAttribute("aria-selected", b.dataset.k === tab));
   try { $("view").innerHTML = await views[tab](); wire(); } catch (e) { setNote("Offline"); $("view").innerHTML = fail(e); }
 }
@@ -217,18 +219,46 @@ api("/api/me").then((m) => {
 render();
 setInterval(() => {
   if (tab === "Weather") return api(wxPath()).then(paintWx).catch(() => {});   // refresh cards, keep the map as is
-  if (tab !== "Radio" && tab !== "Account") render();
+  if (tab !== "Radio" && tab !== "Account" && !routeMapHandle) render();   // keep a shown route map in place
 }, 60000);
 
 // ---- route suggestions ----
 const routeHTML = (d) => `<div class="note">${esc(d.from)} to ${esc(d.to)}. ${d.peak ? "Peak hours: times include a rough allowance for traffic." : "Off-peak: times assume lighter traffic."} Roads come from OpenStreetMap and are checked against current advisories; live congestion is not included.</div>
-  <div class="grid">${d.routes.map((r) => `<div class="panel rt" style="margin:0;${r.recommended ? "border-color:var(--acc2);box-shadow:0 0 22px rgba(169,189,147,.25)" : ""}">
+  <div class="rm-wrap" id="route-map"><div class="note" style="margin:14px">Loading map…</div></div>
+  <div class="grid">${d.routes.map((r, i) => `<div class="panel rt${i === 0 ? " is-on" : ""}" data-ri="${i}" style="margin:0">
     <span class="tag">${r.recommended ? "Suggested" : "Alternative"}${r.labels.map((l) => " · " + esc(l)).join("")}</span>
     <div class="stat">${r.etaMin} min</div>
     <small>${r.km} km · ${r.freeFlowMin} min without traffic</small>
     <small>Via ${esc(r.via.join(", ") || "local roads")}</small>
     ${r.warnings.map((w) => `<small class="err">Warning: ${w.link ? `<a href="${esc(w.link)}" target="_blank" rel="noopener" style="color:inherit">${esc(w.text)}</a>` : esc(w.text)}</small>`).join("")}
-    <small><a href="${esc(r.mapsUrl)}" target="_blank" rel="noopener" style="color:var(--acc)">Open in Google Maps</a></small></div>`).join("")}</div>`;
+    <small><a href="${esc(r.mapsUrl)}" target="_blank" rel="noopener" style="color:var(--acc)">Open in Google Maps for navigation</a></small></div>`).join("")}</div>`;
+
+const loadRouteMap = () => (routeMapReady ||= new Promise((res, rej) => {
+  const fail = (m) => { routeMapReady = null; rej(new Error(m)); };
+  const css = document.createElement("link");
+  css.rel = "stylesheet"; css.href = "/vendor/route-map.css"; document.head.append(css);
+  const js = document.createElement("script");
+  js.src = "/vendor/route-map.js";
+  js.onload = () => (window.RouteMapWidget ? res(window.RouteMapWidget) : fail("The route map did not start."));
+  js.onerror = () => fail("The route map is not built yet (run npm run build:map).");
+  document.head.append(js);
+}));
+
+async function showRouteMap(d) {
+  const el = $("route-map"); if (!el) return;
+  const cards = [...document.querySelectorAll("#routes .rt[data-ri]")];
+  const mark = (i) => cards.forEach((c, k) => c.classList.toggle("is-on", k === i));
+  try {
+    const W = await loadRouteMap();
+    if ($("route-map") !== el) return;                 // tab or search changed while loading
+    el.textContent = "";
+    routeMapHandle = W.mount(el, { routes: d.routes, onSelect: mark });
+    cards.forEach((c, k) => (c.onclick = (e) => { if (e.target.closest("a")) return; mark(k); routeMapHandle?.select(k); }));
+  } catch (e) {
+    el.className = "";
+    el.innerHTML = `<div class="note">${esc(e.message)} You can still open each route in Google Maps below.</div>`;
+  }
+}
 
 function wireRoute() {
   const go = $("route"); if (!go) return;
@@ -244,13 +274,21 @@ function wireRoute() {
     }, 350);
   };
   ["a", "b"].forEach((id) => { $(id).setAttribute("list", "pl"); $(id).oninput = (e) => suggest(e.target); });
+  document.querySelectorAll("[data-spot]").forEach((l) => (l.onclick = (e) => {
+    e.preventDefault();
+    $("b").value = l.dataset.spot;                      // fill the destination; search if a start is set
+    if ($("a").value.trim()) go.click(); else $("a").focus();
+  }));
   go.onclick = async () => {
     const a = $("a").value.trim(), b = $("b").value.trim();
     if (!a || !b) { $("routes").innerHTML = `<div class="panel err">Enter both a start and a destination.</div>`; return; }
     $("routes").innerHTML = `<div class="note">Finding routes…</div>`;
     try {
       const qs = new URLSearchParams({ from: picked.get(a) || a, to: picked.get(b) || b });
-      $("routes").innerHTML = routeHTML(await api("/api/route?" + qs));
+      routeMapHandle?.destroy(); routeMapHandle = null;
+      const d = await api("/api/route?" + qs);
+      $("routes").innerHTML = routeHTML(d);
+      showRouteMap(d);
     } catch (e) { $("routes").innerHTML = `<div class="panel err">${esc(e.message)}</div>`; }
   };
 }

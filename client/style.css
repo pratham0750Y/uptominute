@@ -142,3 +142,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 
 /* account profile and theme preferences */
 .hright{display:flex;align-items:center;gap:12px}.avatar{flex:none;width:44px;height:44px;border-radius:50%;border:2px solid var(--acc);display:grid;place-items:center;overflow:hidden;background:var(--chip);color:var(--acc);font-weight:500;font-size:18px;text-decoration:none;transition:transform .12s}.avatar:hover{transform:scale(1.05)}.avatar img{width:100%;height:100%;object-fit:cover;display:block}.avatar.lg{width:104px;height:104px;font-size:40px}.profile{display:flex;flex-wrap:wrap;align-items:center;gap:18px}.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px}.sw{display:block;text-align:left;cursor:pointer;color:var(--ink);background:var(--chip);border:2px solid var(--line);padding:10px;font:500 14px Jost,system-ui,sans-serif}.sw:hover{border-color:var(--acc)}.sw[aria-pressed="true"]{border-color:var(--acc);box-shadow:0 0 14px rgb(var(--g) / .2)}.sw i{display:inline-block;width:18px;height:18px;margin-right:5px;border-radius:50%;border:1px solid rgba(128,128,128,.6);vertical-align:middle}.sw span{display:block;margin-bottom:6px}.profile .row{align-items:center}
+
+/* route cards: click one to highlight it on the map */
+.rt[data-ri]{cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.rt.is-on{border-color:var(--acc);box-shadow:0 0 22px rgba(169,189,147,.25)}
+.rm-wrap{height:380px;margin-top:14px;border:1px solid var(--line);background:var(--bg-deep)}

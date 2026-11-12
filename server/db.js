@@ -47,11 +47,6 @@ export async function openStore() {
     waitForConnections: true,
     connectionLimit: 5,
   };
-  if (process.env.MYSQL_SSL === "1") {
-  cfg.ssl = {
-    minVersion: "TLSv1.2"
-  };
-}
   const pool = mysql.createPool(cfg);
   try {
     await pool.query("SELECT 1");

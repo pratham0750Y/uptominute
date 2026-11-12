@@ -123,7 +123,7 @@ export function createChat({ getNews, getEvents, getTraffic, getWeather, suggest
       if (!apiKey()) return json(res, 200, { ...local, aiEnabled: false });
 
       const context = {
-        route: route ? { from: route.from, to: route.to, peak: route.peak, routes: route.routes } : null,
+        route: route ? { from: route.from, to: route.to, peak: route.peak, routes: route.routes.map(({ coords, ...r }) => r) } : null,
         news: news?.items?.slice(0, 8).map((i) => ({ title: i.title, source: i.source, time: i.time, url: i.link })) || [],
         events: events?.items?.slice(0, 8).map((i) => ({ title: i.title, startAt: i.startAt, area: i.area, venue: i.venue, registration: i.registration })) || [],
         traffic: traffic?.items?.slice(0, 6).map((i) => ({ title: i.title, source: i.source, url: i.link })) || [],

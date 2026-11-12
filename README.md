@@ -2,6 +2,8 @@
 
 ```
 client/   Browser UI (index.html, style.css, app.js). Only talks to /api/*.
+  vendor/   Built output of route-map/ (generated, see below).
+route-map/ React + react-leaflet widget that draws routes on an in-page map.
 server/   Node 18+ server, zero dependencies.
   server.js    routes, RSS parsing, weather, radio, TTL cache, static hosting
   chat.js      signed-in city assistant, live dashboard context, optional Gemini replies
@@ -19,6 +21,17 @@ GRANT ALL PRIVILEGES ON namma.* TO 'namma'@'localhost';
 ```
 4. Copy `.env.example` to `.env` and put the same password in MYSQL_PASSWORD.
 5. Create accounts: `npm run user -- add alice` (also: `passwd`, `remove`, `list`).
+
+## Route map (React)
+The Traffic tab shows suggested routes on an embedded map (OpenStreetMap tiles, drawn with React + react-leaflet) instead of sending people to Google Maps. Click a route card or a line on the map to switch between routes. Each card still has an "Open in Google Maps for navigation" link.
+
+The widget lives in `route-map/` and is bundled with Vite into `client/vendor/`. Build it once, and again whenever you change anything in `route-map/src/`:
+
+```
+npm run build:map
+```
+
+If you skip the build, the dashboard still works; the map area just shows a short message. Developing the widget: `npm --prefix route-map run watch` rebuilds on save.
 
 ## Bengaluru assistant
 The floating **Ask Bengaluru** assistant can find route estimates, summarize current news, list upcoming events and answer weather/traffic questions from this dashboard's sources. It uses the same route and feed services as the dashboard. Without a Gemini key it still works as a basic local data helper.
@@ -44,7 +57,7 @@ Route answers are estimates, not live congestion data. Event listings are curate
 | GET /api/weather | temp, humidity, wind, AQI (Open-Meteo) | 10 min |
 | GET /api/radio | Karnataka stations with stream URLs (radio-browser.info) | 1 h |
 | GET /api/places?q= | place suggestions inside Bengaluru (OpenStreetMap) | 24 h |
-| GET /api/route?from=&to= | up to 3 routes, ranked, with closure and advisory warnings (OSRM) | none |
+| GET /api/route?from=&to= | up to 3 routes, ranked, with closure and advisory warnings and map coordinates (OSRM) | none |
 | POST /api/chat | Bengaluru assistant; route/news/events/weather context, optional Gemini response | per user rate limited |
 | GET /api/health | liveness | none |
 
