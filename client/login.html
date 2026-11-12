@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sign in · Namma Bengaluru Live</title>
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Jost:wght@300;400;500&display=swap">
+<link rel="stylesheet" href="/style.css">
+<style>.login{max-width:380px;margin:10vh auto 0}.login label{display:block;font:600 13px Jost,system-ui,sans-serif;letter-spacing:2px;text-transform:uppercase;color:var(--acc);margin:12px 0 4px}.login button.go{width:100%;margin-top:16px}#msg{min-height:20px;margin-top:10px;font:14px Jost,system-ui,sans-serif}.modes{display:flex;gap:8px}.modes .tab{flex:1}[hidden]{display:none!important}</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 style="text-align:center">Namma <span>Bengaluru</span> Live</h1>
+  <form class="panel login" id="f">
+    <div class="modes" id="modes">
+      <button type="button" class="tab" data-m="in" aria-selected="true">Sign in</button>
+      <button type="button" class="tab" data-m="up" aria-selected="false">Create account</button>
+    </div>
+    <label for="u">Username</label><input id="u" name="username" autocomplete="username" autocapitalize="none" required>
+    <label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required>
+    <div id="up-only" hidden>
+      <label for="p2">Repeat password</label><input id="p2" type="password" autocomplete="new-password">
+      <div id="code-row" hidden><label for="c">Invite code</label><input id="c" autocomplete="off"></div>
+      <div class="sub" style="margin-top:8px;text-transform:none;letter-spacing:0">Username: 3-30 letters, numbers, dot, dash or underscore. Password: 8+ characters.</div>
+    </div>
+    <button class="go" type="submit" id="go">Sign in</button>
+    <div id="msg" class="err" role="alert"></div>
+  </form>
+  <div class="sub" id="foot" style="text-align:center;margin-top:14px"></div>
+</div>
+<script src="/login.js" type="module"></script>
+</body>
+</html>

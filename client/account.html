@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Account · Namma Bengaluru Live</title>
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Jost:wght@300;400;500&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap" style="max-width:720px">
+  <header>
+    <div><h1>Account</h1><div class="sub" id="who">&nbsp;</div></div>
+    <div class="hright"><a class="tab" href="/">← Dashboard</a></div>
+  </header>
+
+  <div class="panel">
+    <h3>Profile photo</h3>
+    <div class="profile">
+      <div class="avatar lg" id="av"></div>
+      <div>
+        <input id="file" type="file" accept="image/*" hidden>
+        <div class="row"><button class="go" id="up">Upload photo</button><button class="ghost" id="rm" hidden>Remove</button></div>
+        <div class="sub" style="text-transform:none;letter-spacing:0;color:var(--mute);margin-top:8px">Any picture works. It is cropped to a square and shrunk automatically.</div>
+        <div id="avmsg" style="min-height:20px;margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Theme</h3>
+    <div class="swatches" id="themes"></div>
+    <div id="thmsg" style="min-height:20px;margin-top:8px"></div>
+  </div>
+
+  <div class="panel">
+    <h3>Change password</h3>
+    <div style="display:grid;gap:10px;max-width:380px">
+      <input id="cur" type="password" placeholder="Current password" autocomplete="current-password">
+      <input id="np" type="password" placeholder="New password (8+ characters)" autocomplete="new-password">
+      <input id="np2" type="password" placeholder="Repeat new password" autocomplete="new-password">
+      <button class="go" id="pwgo">Update password</button>
+      <div id="pwmsg" style="min-height:20px"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Session</h3>
+    <button class="ghost" id="out">Sign out</button>
+  </div>
+</div>
+<script src="/account.js" type="module"></script>
+</body>
+</html>

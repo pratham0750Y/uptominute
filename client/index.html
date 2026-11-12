@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Namma Bengaluru Live</title>
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Marcellus&family=Jost:wght@300;400;500&display=swap">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Namma <span>Bengaluru</span> Live</h1>
+      <div class="sub">A local dashboard for Bengaluru</div>
+    </div>
+    <div class="hright"><div class="clock"><div id="clock">--:--</div><span class="pill" id="peak"></span></div><a class="avatar" id="avatar" href="/account.html" title="Your account" aria-label="Your account"></a></div>
+  </header>
+  <div class="note" id="note">Loading…</div>
+  <div class="bar" id="tabs" role="tablist"></div>
+  <div id="view"></div>
+</div>
+<button class="chat-launcher" id="chat-launcher" type="button" aria-label="Open Bengaluru assistant" aria-expanded="false" aria-controls="city-chat">✦<span>Ask Bengaluru</span></button>
+<section class="chat-panel" id="city-chat" aria-label="Bengaluru assistant" aria-hidden="true" hidden>
+  <header class="chat-header">
+    <div><b>City assistant</b><small id="chat-status">Routes · news · events</small></div>
+    <button class="chat-close" id="chat-close" type="button" aria-label="Close assistant">×</button>
+  </header>
+  <div class="chat-messages" id="chat-messages" role="log" aria-live="polite" aria-relevant="additions text"></div>
+  <div class="chat-starters" id="chat-starters" aria-label="Suggested questions">
+    <button type="button" data-prompt="What events are coming up in Bengaluru?">Upcoming events</button>
+    <button type="button" data-prompt="Show me recent Bengaluru news">Recent news</button>
+    <button type="button" data-prompt="Route from Indiranagar to MG Road">Plan a route</button>
+  </div>
+  <form class="chat-form" id="chat-form">
+    <label class="sr-only" for="chat-input">Ask about Bengaluru</label>
+    <input id="chat-input" maxlength="1000" autocomplete="off" placeholder="Ask about Bengaluru…">
+    <button class="go" id="chat-send" type="submit" aria-label="Send message">↑</button>
+  </form>
+  <p class="chat-disclaimer">Route times are estimates. Confirm event details with organizers.</p>
+</section>
+<script src="/app.js" type="module"></script>
+</body>
+</html>
