@@ -32,6 +32,11 @@ async function cached(key, ttlMs, load) {
 }
 const get = (url) =>
   fetch(url, { signal: AbortSignal.timeout(8000), headers: { "user-agent": "NammaBengaluruLive/1.0" } });
+async function getJson(url) {
+  const response = await get(url);
+  if (!response.ok) throw new Error(`Weather source returned HTTP ${response.status}`);
+  return response.json();
+}
 
 // ---- RSS ----
 const clean = (s) =>
@@ -88,10 +93,12 @@ async function weatherAt(lat, lon) {
 }
 async function weather(lat = CITY.lat, lon = CITY.lon) {
   const [w, a] = await Promise.all([
-    get(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weather_code&hourly=precipitation_probability&forecast_days=2&timezone=Asia%2FKolkata`).then((r) => r.json()),
-    get(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5`).then((r) => r.json()).catch(() => null),
+    getJson(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weather_code&hourly=precipitation_probability&forecast_days=2&timezone=Asia%2FKolkata`),
+    getJson(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5`).catch(() => null),
   ]);
   const c = w.current;
+  if (!c || !["temperature_2m", "relative_humidity_2m", "precipitation", "wind_speed_10m", "weather_code"].every((key) => Number.isFinite(c[key])))
+    throw new Error("Weather source returned incomplete data");
   const rain = rainChance(w);
   return {
     location: { lat, lon, area: nearestArea(lat, lon) },
