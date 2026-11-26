@@ -23,7 +23,7 @@ async function cached(key, ttlMs, load) {
   if (hit && Date.now() - hit.t < ttlMs) return hit.v;
   try {
     const v = await load();
-    cache.set(key, { t: Date.now(), v });
+    cache.set(key, { t: Date.now() - (v && v.retrySoon ? ttlMs - 10 * 60e3 : 0), v });   // retrySoon: recheck in 10 min
     return v;
   } catch (err) {
     if (hit) return Array.isArray(hit.v) ? hit.v : { ...hit.v, stale: true };
@@ -126,25 +126,39 @@ async function weather(lat = CITY.lat, lon = CITY.lon) {
 
 // ---- Bengaluru radio: fixed station list, streams looked up in radio-browser.info ----
 const DIRECTORY = "https://de1.api.radio-browser.info/json/stations/search";
+// Directory entries for one brand exist for dozens of cities, so a plain "mirchi" search (top 15 by clicks)
+// is filled with Mumbai/Delhi streams. Ask for Karnataka and "<brand> bangalore" explicitly, with a bigger limit.
+const OTHER_PLACES = /mumbai|delhi|chennai|kolkata|hyderabad|pune|ahmedabad|jaipur|lucknow|kochi|cochin|goa|punjab|gujarat|maharashtra|tamil|kerala|telangana|andhra|bhopal|indore|nagpur|patna|ranchi|chandigarh/i;
+async function searchDirectory(params) {
+  const url = `${DIRECTORY}?${params}&countrycode=IN&hidebroken=true&order=clickcount&reverse=true&limit=100`;
+  try { return await (await get(url)).json(); }
+  catch (err) { console.warn(`[radio] directory query failed (${params}): ${err.message}`); return []; }
+}
+const isPlayable = (u) => /^https?:\/\//i.test(u || "") && !/\.(m3u8|pls|m3u)(\?|$)/i.test(u);   // plain <audio> can't play these
 async function findStream(st) {
-  const hits = [];
+  const queries = [];
   for (const term of st.match) {
-    const url = `${DIRECTORY}?name=${encodeURIComponent(term)}&countrycode=IN&hidebroken=true&order=clickcount&reverse=true&limit=15`;
-    hits.push(...(await (await get(url)).json()));
+    const t = encodeURIComponent(term);
+    queries.push(`name=${t}&state=karnataka`, `name=${encodeURIComponent(term + " bangalore")}`, `name=${encodeURIComponent(term + " bengaluru")}`, `name=${t}`);
   }
-  const ok = hits.filter((h) => (h.url_resolved || "").startsWith("http") && st.match.some((m) => h.name.toLowerCase().includes(m)));
-  const bengaluru = ok.find((h) => /bangalore|bengaluru/i.test(`${h.name} ${h.tags} ${h.state}`));
-  const karnataka = ok.find((h) => /karnataka/i.test(h.state || ""));
-  const best = bengaluru || karnataka;           // never guess: a Mumbai or Delhi stream would be the wrong station
+  const hits = (await Promise.all(queries.map(searchDirectory))).flat();
+  const named = hits.filter((h) => isPlayable(h.url_resolved) && st.match.some((m) => h.name.toLowerCase().includes(m)));
+  const loc = (h) => `${h.name} ${h.tags} ${h.state}`;
+  const best =
+    named.find((h) => /bangalore|bengaluru/i.test(loc(h))) ||
+    named.find((h) => /karnataka/i.test(h.state || "")) ||
+    // last resort: no location at all, but never one that clearly names another city/state
+    named.find((h) => !h.state && !OTHER_PLACES.test(loc(h)));
+  if (!best) console.warn(`[radio] no Bengaluru stream found for ${st.name} (${named.length} name matches)`);
   return best ? best.url_resolved : null;
 }
 async function radio() {
   const stations = await Promise.all(BENGALURU_RADIO.map(async (st) => {
-    let stream = null;
-    try { stream = await findStream(st); } catch {}
+    let stream = st.stream || null;                 // optional hand-picked URL in sources.js wins
+    if (!stream) { try { stream = await findStream(st); } catch (err) { console.warn(`[radio] ${st.name}: ${err.message}`); } }
     return { name: st.name, freq: st.freq, stream, site: st.site, tags: "FM · Bengaluru" };
   }));
-  return { stations, source: "Bengaluru FM list, streams from radio-browser.info", fetchedAt: new Date().toISOString() };
+  return { stations, retrySoon: stations.some((x) => !x.stream), source: "Bengaluru FM list, streams from radio-browser.info", fetchedAt: new Date().toISOString() };
 }
 
 // ---- place search + route suggestions (OpenStreetMap Nominatim + OSRM, no keys) ----
