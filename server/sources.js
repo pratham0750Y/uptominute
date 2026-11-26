@@ -63,16 +63,16 @@ export const EVENTS = [
 
 export const CITY = { lat: 12.9716, lon: 77.5946 };
 
-// Bengaluru FM stations. `match` words are used to find a Bengaluru stream in the radio directory;
-// if none is found the card simply opens the station's website. Check the frequencies if you move city.
+// Bengaluru FM stations. Match terms include common directory name variants;
+// stream lookup still requires Bengaluru/Karnataka metadata to avoid linking another city's station.
 export const BENGALURU_RADIO = [
-  { name: "Radio City", freq: "91.1", match: ["radio city"], site: "https://www.radiocity.in" },
-  { name: "Radio Mirchi", freq: "98.3", match: ["mirchi"], site: "https://www.radiomirchi.com" },
-  { name: "Red FM", freq: "93.5", match: ["red fm"], site: "https://www.redfmindia.in" },
-  { name: "BIG FM", freq: "92.7", match: ["big fm"], site: "https://www.bigfm.in" },
-  { name: "Fever 104", freq: "104.0", match: ["fever"], site: "https://www.fever104.com" },
-  { name: "Radio Indigo", freq: "91.9", match: ["indigo"], site: "https://www.radioindigo.in" },
-  { name: "AIR FM Rainbow", freq: "101.3", match: ["rainbow", "air fm"], site: "https://newsonair.gov.in" },
+  { name: "Radio City", freq: "91.1", match: ["radio city", "91.1 radio city"], site: "https://www.radiocity.in" },
+  { name: "Radio Mirchi", freq: "98.3", match: ["mirchi", "radio mirchi", "mirchi 98.3"], site: "https://www.radiomirchi.com" },
+  { name: "Red FM", freq: "93.5", match: ["red fm", "redfm", "93.5 red"], site: "https://www.redfmindia.in" },
+  { name: "BIG FM", freq: "92.7", match: ["big fm", "big 92.7"], site: "https://www.bigfm.in" },
+  { name: "Fever 104", freq: "104.0", match: ["fever", "fever fm", "104 fever"], site: "https://www.fever104.com" },
+  { name: "Radio Indigo", freq: "91.9", match: ["indigo", "radio indigo", "91.9 indigo"], site: "https://www.radioindigo.in" },
+  { name: "AIR FM Rainbow", freq: "101.3", match: ["rainbow", "air fm", "akashvani rainbow", "vividh bharati"], site: "https://newsonair.gov.in" },
 ];
 
 // Known long-running closures (from news reports, Oct 2026). Update as they change.
