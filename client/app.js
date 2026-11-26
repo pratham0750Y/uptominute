@@ -170,7 +170,9 @@ function wire() {
       const d = await api("/api/radio"), s = d.stations[el.dataset.i];
       if (!s.stream) return;           // no stream: let the link open the station site
       e.preventDefault();
-      p.src = s.stream; p.play().catch(() => ($("np").textContent = `${s.name}: stream blocked, try its website`));
+      const fail = () => ($("np").innerHTML = `${esc(s.name)}: this stream won't play here. <a href="${esc(s.site || "#")}" target="_blank" rel="noopener">Open its website</a>`);
+      p.onerror = fail;
+      p.src = s.stream; p.play().catch(fail);
       $("np").textContent = s.name;
     };
   });
