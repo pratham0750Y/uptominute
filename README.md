@@ -22,6 +22,8 @@ GRANT ALL PRIVILEGES ON namma.* TO 'namma'@'localhost';
 4. Copy `.env.example` to `.env` and put the same password in MYSQL_PASSWORD.
 5. Create accounts: `npm run user -- add alice` (also: `passwd`, `remove`, `list`).
 
+Weather uses WeatherAPI.com. Create an API key at [WeatherAPI.com](https://www.weatherapi.com/), then set `WEATHER_API_KEY` in `.env` for local development or in the Render service's Environment settings for deployment. Keep the key server-side; do not commit it or put it in browser code.
+
 ## Route map (React)
 The Traffic tab shows suggested routes on an embedded map (OpenStreetMap tiles, drawn with React + react-leaflet) instead of sending people to Google Maps. Click a route card or a line on the map to switch between routes. Each card still has an "Open in Google Maps for navigation" link.
 
@@ -54,7 +56,7 @@ Route answers are estimates, not live congestion data. Event listings are curate
 | GET /api/news | merged, de-duplicated headlines | 5 min |
 | GET /api/traffic | traffic advisory headlines | 3 min |
 | GET /api/events | curated upcoming Bengaluru events | maintained in `server/sources.js` |
-| GET /api/weather | temp, humidity, wind, AQI (Open-Meteo) | 10 min |
+| GET /api/weather | temp, humidity, wind, AQI (WeatherAPI.com) | 10 min |
 | GET /api/radio | Karnataka stations with stream URLs (radio-browser.info) | 1 h |
 | GET /api/places?q= | place suggestions inside Bengaluru (OpenStreetMap) | 24 h |
 | GET /api/route?from=&to= | up to 3 routes, ranked, with closure and advisory warnings and map coordinates (OSRM) | none |
