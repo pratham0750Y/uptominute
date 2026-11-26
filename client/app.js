@@ -128,7 +128,7 @@ const views = {
   async Weather() {
     const [w, areas] = await Promise.all([api(wxPath()), api("/api/areas")]);
     areasList = areas;
-    setNote(`Open-Meteo · updated ${ago(w.fetchedAt)}${w.stale ? " (cached)" : ""}. Pick an area, search a place or tap the map.`);
+    setNote(`WeatherAPI.com · updated ${ago(w.fetchedAt)}${w.stale ? " (cached)" : ""}. Pick an area, search a place or tap the map.`);
     return `<div class="panel"><h3>Choose a location</h3>
       <div class="row"><select id="area" aria-label="Area"></select><input id="wq" placeholder="Search a place" list="pl2" autocomplete="off"><button class="go" id="here">Use my location</button></div>
       <datalist id="pl2"></datalist>

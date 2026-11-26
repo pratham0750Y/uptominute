@@ -34,8 +34,10 @@ const get = (url) =>
   fetch(url, { signal: AbortSignal.timeout(8000), headers: { "user-agent": "NammaBengaluruLive/1.0" } });
 async function getJson(url) {
   const response = await get(url);
-  if (!response.ok) throw new Error(`Weather source returned HTTP ${response.status}`);
-  return response.json();
+  const data = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(data?.error?.message || `Weather source returned HTTP ${response.status}`);
+  if (!data) throw new Error("Weather source returned invalid JSON");
+  return data;
 }
 
 // ---- RSS ----
@@ -65,18 +67,27 @@ async function collect(feeds) {
   return { items, fetchedAt: new Date().toISOString(), feedsOk: results.filter((r) => r.status === "fulfilled").length };
 }
 
-// ---- weather + air quality (Open-Meteo, no key) ----
-const WMO = { 0: "Clear", 1: "Mostly clear", 2: "Partly cloudy", 3: "Overcast", 45: "Fog", 48: "Fog", 51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle", 61: "Light rain", 63: "Rain", 65: "Heavy rain", 80: "Showers", 81: "Showers", 82: "Violent showers", 95: "Thunderstorm", 96: "Thunderstorm, hail", 99: "Thunderstorm, hail" };
+// ---- weather + air quality (WeatherAPI.com) ----
 const rainLevel = (p) => (p >= 75 ? "Very likely" : p >= 50 ? "Likely" : p >= 20 ? "Possible" : "Unlikely");
-function rainChance(w) {
-  const probs = w.hourly?.precipitation_probability, times = w.hourly?.time;
-  if (!probs || !times) return null;
-  const now = (w.current.time || "").slice(0, 13);            // e.g. 2026-10-15T14
-  let i = times.findIndex((t) => t.startsWith(now));
-  if (i < 0) i = 0;
-  const max = (n) => Math.max(...probs.slice(i, i + n).filter((x) => x != null), 0);
+function rainChance(days, now) {
+  const hours = days?.flatMap((day) => day.hour || []).filter((hour) => hour.time_epoch >= now) || [];
+  if (!hours.length || !hours.every((hour) => Number.isFinite(hour.chance_of_rain))) return null;
+  const probs = hours.map((hour) => hour.chance_of_rain);
+  const max = (n) => Math.max(...probs.slice(0, n), 0);
   const next3h = max(3), next6h = max(6), next24h = max(24);
-  return { next3h, next6h, next24h, level: rainLevel(next6h), hourly: probs.slice(i, i + 6) };
+  return { next3h, next6h, next24h, level: rainLevel(next6h), hourly: probs.slice(0, 6) };
+}
+function usAqiFromPm25(pm25) {
+  if (!Number.isFinite(pm25) || pm25 < 0) return null;
+  const concentration = Math.floor(pm25 * 10) / 10;
+  const ranges = [
+    [0, 9, 0, 50], [9.1, 35.4, 51, 100], [35.5, 55.4, 101, 150],
+    [55.5, 125.4, 151, 200], [125.5, 225.4, 201, 300], [225.5, 325.4, 301, 500],
+  ];
+  const range = ranges.find(([low, high]) => concentration >= low && concentration <= high);
+  if (!range) return concentration > 325.4 ? 500 : null;
+  const [cLow, cHigh, iLow, iHigh] = range;
+  return Math.round(((iHigh - iLow) / (cHigh - cLow)) * (concentration - cLow) + iLow);
 }
 const km = (a, b, c, d) => {            // haversine distance in km
   const r = (x) => (x * Math.PI) / 180, h = Math.sin(r(c - a) / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(r(d - b) / 2) ** 2;
@@ -92,19 +103,23 @@ async function weatherAt(lat, lon) {
   return cached(`weather:${lat.toFixed(2)},${lon.toFixed(2)}`, 10 * 60e3, () => weather(lat, lon));
 }
 async function weather(lat = CITY.lat, lon = CITY.lon) {
-  const [w, a] = await Promise.all([
-    getJson(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m,weather_code&hourly=precipitation_probability&forecast_days=2&timezone=Asia%2FKolkata`),
-    getJson(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm2_5`).catch(() => null),
-  ]);
+  if (!process.env.WEATHER_API_KEY) throw new Error("Set WEATHER_API_KEY in the server environment to enable weather");
+  const url = new URL("https://api.weatherapi.com/v1/forecast.json");
+  url.search = new URLSearchParams({
+    key: process.env.WEATHER_API_KEY, q: `${lat},${lon}`, days: "2", aqi: "yes",
+  }).toString();
+  const w = await getJson(url);
   const c = w.current;
-  if (!c || !["temperature_2m", "relative_humidity_2m", "precipitation", "wind_speed_10m", "weather_code"].every((key) => Number.isFinite(c[key])))
+  if (!c || !Number.isFinite(c.temp_c) || !Number.isFinite(c.humidity) || !Number.isFinite(c.precip_mm)
+    || !Number.isFinite(c.wind_kph) || typeof c.condition?.text !== "string")
     throw new Error("Weather source returned incomplete data");
-  const rain = rainChance(w);
+  const pm25 = c.air_quality?.pm2_5;
+  const rain = rainChance(w.forecast?.forecastday, c.last_updated_epoch);
   return {
     location: { lat, lon, area: nearestArea(lat, lon) },
     rain,
-    tempC: c.temperature_2m, humidity: c.relative_humidity_2m, rainMm: c.precipitation, windKmh: c.wind_speed_10m,
-    summary: WMO[c.weather_code] || "—", aqi: a?.current?.us_aqi ?? null, pm25: a?.current?.pm2_5 ?? null,
+    tempC: c.temp_c, humidity: c.humidity, rainMm: c.precip_mm, windKmh: c.wind_kph,
+    summary: c.condition.text, aqi: usAqiFromPm25(pm25), pm25: Number.isFinite(pm25) ? pm25 : null,
     fetchedAt: new Date().toISOString(),
   };
 }
