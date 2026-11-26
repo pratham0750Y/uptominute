@@ -128,7 +128,7 @@ const views = {
   async Weather() {
     const [w, areas] = await Promise.all([api(wxPath()), api("/api/areas")]);
     areasList = areas;
-    setNote(`Open-Meteo · updated ${ago(w.fetchedAt)}${w.stale ? " (cached)" : ""}. Pick an area, search a place or tap the map.`);
+    setNote(`WeatherAPI.com · updated ${ago(w.fetchedAt)}${w.stale ? " (cached)" : ""}. Pick an area, search a place or tap the map.`);
     return `<div class="panel"><h3>Choose a location</h3>
       <div class="row"><select id="area" aria-label="Area"></select><input id="wq" placeholder="Search a place" list="pl2" autocomplete="off"><button class="go" id="here">Use my location</button></div>
       <datalist id="pl2"></datalist>
@@ -170,7 +170,9 @@ function wire() {
       const d = await api("/api/radio"), s = d.stations[el.dataset.i];
       if (!s.stream) return;           // no stream: let the link open the station site
       e.preventDefault();
-      p.src = s.stream; p.play().catch(() => ($("np").textContent = `${s.name}: stream blocked, try its website`));
+      const fail = () => ($("np").innerHTML = `${esc(s.name)}: this stream won't play here. <a href="${esc(s.site || "#")}" target="_blank" rel="noopener">Open its website</a>`);
+      p.onerror = fail;
+      p.src = s.stream; p.play().catch(fail);
       $("np").textContent = s.name;
     };
   });
@@ -269,4 +271,201 @@ function wireRoute() {
     timer = setTimeout(async () => {
       try {
         const list = await api("/api/places?q=" + encodeURIComponent(q));
-        $("pl").
+        $("pl").innerHTML = list.map((p) => { picked.set(p.name, `${p.lat},${p.lon}`); return `<option value="${esc(p.name)}">`; }).join("");
+      } catch {}
+    }, 350);
+  };
+  ["a", "b"].forEach((id) => { $(id).setAttribute("list", "pl"); $(id).oninput = (e) => suggest(e.target); });
+  document.querySelectorAll("[data-spot]").forEach((l) => (l.onclick = (e) => {
+    e.preventDefault();
+    $("b").value = l.dataset.spot;                      // fill the destination; search if a start is set
+    if ($("a").value.trim()) go.click(); else $("a").focus();
+  }));
+  go.onclick = async () => {
+    const a = $("a").value.trim(), b = $("b").value.trim();
+    if (!a || !b) { $("routes").innerHTML = `<div class="panel err">Enter both a start and a destination.</div>`; return; }
+    $("routes").innerHTML = `<div class="note">Finding routes…</div>`;
+    try {
+      const qs = new URLSearchParams({ from: picked.get(a) || a, to: picked.get(b) || b });
+      routeMapHandle?.destroy(); routeMapHandle = null;
+      const d = await api("/api/route?" + qs);
+      $("routes").innerHTML = routeHTML(d);
+      showRouteMap(d);
+    } catch (e) { $("routes").innerHTML = `<div class="panel err">${esc(e.message)}</div>`; }
+  };
+}
+
+// ---- weather location picker ----
+const loadLeaflet = () => (leafletReady ||= new Promise((res, rej) => {
+  const css = document.createElement("link");
+  css.rel = "stylesheet"; css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.append(css);
+  const js = document.createElement("script");
+  js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js";
+  js.onload = () => res(window.L); js.onerror = () => { leafletReady = null; rej(new Error("The map library could not load. Check your connection.")); };
+  document.head.append(js);
+}));
+
+function paintWx(w) {
+  if (!$("wxcards")) return;
+  const a = w.location.area;
+  $("wxhead").textContent = `Weather ${a.km < 1 ? "in" : "near"} ${a.name}${a.km >= 1 ? ` · ${a.km} km away` : ""}`;
+  $("wxcards").innerHTML = weatherCards(w);
+  const sel = $("area"), i = areasList.findIndex((x) => x.name === a.name);
+  sel.value = a.km < 1 && i >= 0 ? String(i) : "";
+}
+
+async function applyLoc(l) {
+  const msg = $("wxmsg");
+  try {
+    const w = await api(wxPath(l));          // only accept the location if the server can serve it
+    loc = l; try { localStorage.setItem("blr-loc", JSON.stringify(l)); } catch {}
+    if (pin) pin.setLatLng([l.lat, l.lon]);
+    if (map) map.panTo([l.lat, l.lon]);
+    paintWx(w); msg.textContent = "Tap the map to drop a pin anywhere in Bengaluru.";
+  } catch (e) { msg.textContent = e.message; }
+}
+
+async function wireWeather() {
+  const sel = $("area");
+  sel.innerHTML = `<option value="">Pinned location</option>` + areasList.map((a, i) => `<option value="${i}">${esc(a.name)}</option>`).join("");
+  sel.onchange = () => { const a = areasList[sel.value]; if (a) applyLoc({ lat: a.lat, lon: a.lon }); };
+  $("here").onclick = () => {
+    if (!navigator.geolocation) { $("wxmsg").textContent = "This browser has no location support."; return; }
+    navigator.geolocation.getCurrentPosition(
+      (p) => applyLoc({ lat: +p.coords.latitude.toFixed(4), lon: +p.coords.longitude.toFixed(4) }),
+      () => ($("wxmsg").textContent = "Location permission was denied. Pick an area or tap the map."), { timeout: 8000 });
+  };
+  let timer;
+  $("wq").oninput = (e) => {
+    clearTimeout(timer);
+    const v = e.target.value.trim();
+    if (picked.has(v)) { const [lat, lon] = picked.get(v).split(",").map(Number); return applyLoc({ lat, lon }); }
+    if (v.length < 3) return;
+    timer = setTimeout(async () => {
+      try {
+        const list = await api("/api/places?q=" + encodeURIComponent(v));
+        $("pl2").innerHTML = list.map((p) => { picked.set(p.name, `${p.lat},${p.lon}`); return `<option value="${esc(p.name)}">`; }).join("");
+      } catch {}
+    }, 350);
+  };
+  try {
+    const w = await api(wxPath()); paintWx(w);
+    const L = await loadLeaflet();
+    if (!$("map")) return;                       // tab changed while loading
+    if (map) map.remove();
+    const { lat, lon } = w.location;
+    map = L.map("map").setView([lat, lon], 11);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap contributors" }).addTo(map);
+    areasList.forEach((a) => L.circleMarker([a.lat, a.lon], { radius: 5, color: "#a9bd93", weight: 1, fillOpacity: 0.6 })
+      .bindTooltip(a.name).on("click", (ev) => { L.DomEvent.stopPropagation(ev); applyLoc({ lat: a.lat, lon: a.lon }); }).addTo(map));
+    pin = L.circleMarker([lat, lon], { radius: 9, color: "#e0b48a", fillColor: "#e0b48a", fillOpacity: 0.5 }).addTo(map);
+    map.on("click", (e) => applyLoc({ lat: +e.latlng.lat.toFixed(4), lon: +e.latlng.lng.toFixed(4) }));
+  } catch (e) { if ($("map")) $("map").innerHTML = `<div class="panel err">${esc(e.message)}</div>`; }
+}
+
+// ---- change password ----
+function wirePassword() {
+  $("pwgo").onclick = async () => {
+    const msg = $("pwmsg"), show = (t, ok) => { msg.className = ok ? "ok" : "err"; msg.textContent = t; };
+    if ($("np").value !== $("np2").value) return show("The two new passwords do not match.", false);
+    $("pwgo").disabled = true;
+    try {
+      const res = await fetch("/api/password", { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ current: $("cur").value, password: $("np").value }) });
+      const d = await res.json().catch(() => ({}));
+      if (res.status === 401) return (location.href = "/login.html");
+      if (res.ok) { show("Password changed. Other devices have been signed out.", true); ["cur", "np", "np2"].forEach((i) => ($(i).value = "")); }
+      else show(d.message || "Could not change the password.", false);
+    } catch { show("Could not reach the server.", false); }
+    $("pwgo").disabled = false;
+  };
+}
+
+// ---- Bengaluru assistant ----
+function wireChat() {
+  const launcher = $("chat-launcher"), panel = $("city-chat"), input = $("chat-input");
+  const messages = $("chat-messages"), form = $("chat-form"), send = $("chat-send"), status = $("chat-status");
+  if (!launcher || !panel) return;
+  const history = [];
+  let aiEnabled = false;
+
+  const scrollChat = () => { messages.scrollTop = messages.scrollHeight; };
+  const addMessage = (value, role, sources = [], extra = "") => {
+    const bubble = document.createElement("div");
+    bubble.className = `chat-message ${role}${extra ? ` ${extra}` : ""}`;
+    bubble.textContent = value;
+    if (role === "assistant" && sources.length) {
+      const list = document.createElement("div"); list.className = "chat-sources";
+      for (const source of sources.slice(0, 6)) {
+        let url;
+        try { url = new URL(source.url, location.origin); } catch { continue; }
+        if (!/^https?:$/.test(url.protocol)) continue;
+        const link = document.createElement("a"); link.className = "chat-source";
+        link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer";
+        link.textContent = source.title || "Open source";
+        if (source.detail || source.kind) {
+          const detail = document.createElement("small"); detail.textContent = [source.kind, source.detail].filter(Boolean).join(" · ");
+          link.append(detail);
+        }
+        list.append(link);
+      }
+      if (list.childElementCount) bubble.append(list);
+    }
+    messages.append(bubble); scrollChat(); return bubble;
+  };
+
+  const setOpen = (open) => {
+    panel.hidden = !open; panel.setAttribute("aria-hidden", String(!open));
+    launcher.setAttribute("aria-expanded", String(open));
+    if (open) input.focus(); else launcher.focus();
+  };
+  launcher.onclick = () => setOpen(panel.hidden);
+  $("chat-close").onclick = () => setOpen(false);
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !panel.hidden) setOpen(false); });
+
+  addMessage("Hi! I can help with Bengaluru routes, recent news, upcoming events and weather. What are you looking for?", "assistant");
+  api("/api/chat/status").then((result) => {
+    aiEnabled = result.aiEnabled;
+    status.textContent = aiEnabled ? "Gemini AI · dashboard sources" : "Local data helper · add Gemini key for AI";
+    status.classList.toggle("local-mode", !aiEnabled);
+  }).catch(() => { status.textContent = "Routes · news · events"; });
+
+  document.querySelectorAll("[data-prompt]").forEach((button) => {
+    button.onclick = () => { input.value = button.dataset.prompt; form.requestSubmit(); };
+  });
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const message = input.value.trim();
+    if (!message || send.disabled) return;
+    input.value = "";
+    const previousHistory = history.slice(-8);
+    addMessage(message, "user");
+    history.push({ role: "user", text: message });
+    send.disabled = true;
+    const pending = addMessage("Checking Bengaluru sources…", "assistant", [], "pending");
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message, history: previousHistory }),
+      });
+      const result = await response.json().catch(() => ({}));
+      pending.remove();
+      if (response.status === 401) { location.href = "/login.html"; return; }
+      if (result.fallback) {
+        const prefix = result.message ? `${result.message}\n\n` : "";
+        addMessage(prefix + result.fallback.reply, "assistant", result.fallback.sources || []);
+        history.push({ role: "assistant", text: result.fallback.reply });
+      } else if (!response.ok) {
+        addMessage(result.message || "I couldn't reach the assistant. Please try again.", "assistant");
+      } else {
+        addMessage(result.reply || "I couldn't form a response from the available data.", "assistant", result.sources || []);
+        history.push({ role: "assistant", text: result.reply || "" });
+      }
+      history.splice(0, Math.max(0, history.length - 8));
+    } catch {
+      pending.remove(); addMessage("I couldn't reach the server. Please try again in a moment.", "assistant");
+    } finally { send.disabled = false; input.focus(); }
+  };
+}
+
+wireChat();
